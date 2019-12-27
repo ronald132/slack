@@ -12,16 +12,21 @@ import { Link } from "react-router-dom";
 import firebase from "../../firebase";
 import md5 from "md5";
 
+const initialState = {
+  username: "",
+  email: "",
+  password: "",
+  passwordConfirmation: "",
+  errors: [],
+  loading: false,
+  usersRef: firebase.database().ref("users")
+};
+
 class Register extends Component {
-  state = {
-    username: "",
-    email: "",
-    password: "",
-    passwordConfirmation: "",
-    errors: [],
-    loading: false,
-    usersRef: firebase.database().ref("users")
-  };
+  constructor() {
+    super();
+    this.state = initialState;
+  }
 
   displayErrors = errors =>
     errors.map((error, i) => <p key={i}>{error.message}</p>);
@@ -102,9 +107,7 @@ class Register extends Component {
             })
             .then(() => {
               this.saveUser(createdUser).then(() => {
-                this.setState({
-                  loading: false
-                });
+                this.setState(initialState);
               });
             })
             .catch(err => {
