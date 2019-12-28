@@ -2,28 +2,117 @@ import React, { Component } from "react";
 import { Segment, Input, Button } from "semantic-ui-react";
 import { connect } from "react-redux";
 import firebase from "../../firebase";
+import FileModal from "./FileModal";
+import uuidv4 from "uuid/v4";
+
 class MessageForm extends Component {
   state = {
+    storageRef: firebase.storage().ref(),
+    uploadTask: null,
+    uploadState: "",
+    percentUploaded: 0,
     message: "",
     loading: false,
-    errors: []
+    errors: [],
+    modal: false,
+    messagesRef: firebase.database().ref("messages")
   };
+
+  openModal = () => this.setState({ modal: true });
+  closeModal = () => this.setState({ modal: false });
+
   handleOnChange = event => {
     this.setState({
       [event.target.name]: event.target.value
     });
   };
 
-  createMessage = () => {
+  uploadFile = (file, metadata) => {
+    const channel = this.props.currentChannel;
+    if (channel) {
+      const pathToUpload = channel.id;
+      const filePath = `images/${uuidv4()}.jpg`;
+      this.setState(
+        {
+          uploadState: "uploading",
+          uploadTask: this.state.storageRef.child(filePath).put(file, metadata)
+        },
+        () => {
+          this.state.uploadTask.on(
+            "state_changed",
+            snap => {
+              const percentUploaded = Math.round(
+                (snap.bytesTransferred / snap.totalBytes) * 100
+              );
+              this.setState({
+                percentUploaded: percentUploaded
+              });
+            },
+            err => {
+              console.log(err);
+              this.setState({
+                errors: this.state.errors.concat(err),
+                uploadState: "error",
+                uploadTask: null
+              });
+            },
+            () => {
+              this.state.uploadTask.snapshot.ref
+                .getDownloadURL()
+                .then(downloadUrl => {
+                  this.sendFileMessage(
+                    downloadUrl,
+                    this.state.messagesRef,
+                    pathToUpload
+                  );
+                })
+                .catch(err => {
+                  this.setState({
+                    errors: this.state.errors.concat(err),
+                    uploadState: "error",
+                    uploadTask: null
+                  });
+                });
+            }
+          );
+        }
+      );
+    }
+  };
+
+  sendFileMessage = (fileUrl, ref, pathToUpload) => {
+    ref
+      .child(pathToUpload)
+      .push()
+      .set(this.createMessage(fileUrl))
+      .then(() => {
+        this.setState({
+          uploadState: "done"
+        });
+      })
+      .catch(err => {
+        this.setState({
+          errors: this.state.errors.concat(err),
+          uploadState: "error",
+          uploadTask: null
+        });
+      });
+  };
+  createMessage = (fileUrl = null) => {
     const message = {
       timestamp: firebase.database.ServerValue.TIMESTAMP,
-      content: this.state.message,
       user: {
         id: this.props.currentUser.uid,
         name: this.props.currentUser.displayName,
         avatar: this.props.currentUser.photoURL
       }
     };
+    if (fileUrl !== null) {
+      message["image"] = fileUrl;
+    } else {
+      message["content"] = this.state.message;
+    }
+
     return message;
   };
   sendMessage = () => {
@@ -58,8 +147,7 @@ class MessageForm extends Component {
     }
   };
   render() {
-    const { errors, message, loading } = this.state;
-
+    const { errors, message, loading, modal } = this.state;
     return (
       <Segment className="message__form">
         <Input
@@ -71,13 +159,7 @@ class MessageForm extends Component {
           label={<Button icon="add" />}
           labelPosition="left"
           placeholder="Write your message"
-          className={
-            errors.some(error =>
-              error.message.toLowerCase().includes("message")
-            )
-              ? "error"
-              : ""
-          }
+          className={errors.length > 0 ? "error" : ""}
         ></Input>
         <Button.Group icon widths="2">
           <Button
@@ -89,11 +171,17 @@ class MessageForm extends Component {
             icon="edit"
           ></Button>
           <Button
+            onClick={this.openModal}
             color="teal"
             content="Upload Media"
             labelPosition="left"
             icon="cloud"
           ></Button>
+          <FileModal
+            modal={modal}
+            closeModal={this.closeModal}
+            uploadFile={this.uploadFile}
+          />
         </Button.Group>
       </Segment>
     );
