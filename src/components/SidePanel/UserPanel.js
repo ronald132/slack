@@ -33,10 +33,6 @@ class UserPanel extends Component {
       });
   };
 
-  componentWillReceiveProps(nextProps) {
-    this.setState({ user: nextProps.currentUser });
-  }
-
   render() {
     const user = this.props.currentUser;
     return (
