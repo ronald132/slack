@@ -11,7 +11,11 @@ class Messages extends Component {
     messages: [],
     messagesRef: firebase.database().ref("messages"),
     messsagesLoading: true,
-    previousChannel: null
+    previousChannel: null,
+    numUniqueUsers: "",
+    searchLoading: false,
+    searchTerm: "",
+    searchResults: []
   };
 
   UNSAFE_componentWillReceiveProps(nextProps) {
@@ -19,6 +23,7 @@ class Messages extends Component {
     if (currentUser && currentChannel) {
       if (this.state.previousChannel != null) {
         this.removeListener(this.state.previousChannel.id);
+        this.clearRender();
       }
       this.setState(
         {
@@ -30,6 +35,43 @@ class Messages extends Component {
       );
     }
   }
+
+  handleSearchMessages = () => {
+    const channelMessages = [...this.state.messages]; // to ensure we don't mutate the original messages array
+    const regex = new RegExp(this.state.searchTerm, "gi");
+    const searchResults = channelMessages.reduce((acc, message) => {
+      if (
+        (message.content && message.content.match(regex)) ||
+        message.user.name.match(regex)
+      ) {
+        acc.push(message);
+      }
+      return acc;
+    }, []);
+    this.setState({
+      searchResults
+    });
+    setTimeout(
+      () =>
+        this.setState({
+          searchLoading: false
+        }),
+      1000
+    );
+  };
+
+  handleSearchChange = event => {
+    this.setState(
+      {
+        searchTerm: event.target.value,
+        searchLoading: true
+      },
+      () => this.handleSearchMessages()
+    );
+  };
+
+  displayChannelName = () =>
+    this.props.currentChannel ? `#${this.props.currentChannel.name}` : "";
 
   addListener = channelId => {
     this.addMessageListener(channelId);
@@ -54,9 +96,26 @@ class Messages extends Component {
         messages: loadedMessages,
         messsagesLoading: false
       });
+      this.countUniqueUsers(loadedMessages);
     });
   };
 
+  countUniqueUsers = messages => {
+    const uniqueUsers = messages.reduce((acc, message) => {
+      if (!acc.includes(message.user.name)) {
+        acc.push(message.user.name);
+      }
+      return acc;
+    }, []);
+
+    const plural = uniqueUsers.length > 1;
+
+    const numUniqueUsers = `${uniqueUsers.length} user${plural ? "s" : ""}`;
+
+    this.setState({
+      numUniqueUsers: numUniqueUsers
+    });
+  };
   displayMessages = messages => {
     return (
       messages.length > 0 &&
@@ -71,14 +130,38 @@ class Messages extends Component {
     );
   };
 
+  clearRender = () => {
+    this.setState({
+      messages: [],
+      numUniqueUsers: ""
+    });
+  };
+
   render() {
-    const { messagesRef, messages, messsagesLoading } = this.state;
+    const {
+      messagesRef,
+      messages,
+      messsagesLoading,
+      numUniqueUsers,
+      searchTerm,
+      searchResults,
+      searchLoading
+    } = this.state;
     return (
       <React.Fragment>
-        <MessagesHeader />
+        <MessagesHeader
+          handleSearchChange={this.handleSearchChange}
+          channelName={this.displayChannelName()}
+          numUniqueUsers={numUniqueUsers}
+          searchLoading={searchLoading}
+        />
         <Segment>
           <CommentGroup className="messages">
-            {messsagesLoading ? "" : this.displayMessages(messages)}
+            {messsagesLoading
+              ? ""
+              : searchTerm
+              ? this.displayMessages(searchResults)
+              : this.displayMessages(messages)}
           </CommentGroup>
         </Segment>
         <MessageForm messagesRef={messagesRef} />
