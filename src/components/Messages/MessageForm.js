@@ -180,6 +180,7 @@ class MessageForm extends Component {
           ></Button>
           <Button
             onClick={this.openModal}
+            disabled={uploadState === "uploading"}
             color="teal"
             content="Upload Media"
             labelPosition="left"
