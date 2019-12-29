@@ -10,13 +10,24 @@ class Messages extends Component {
   state = {
     messages: [],
     messagesRef: firebase.database().ref("messages"),
-    messsagesLoading: true
+    messsagesLoading: true,
+    previousChannel: null
   };
 
   UNSAFE_componentWillReceiveProps(nextProps) {
     const { currentUser, currentChannel } = nextProps;
     if (currentUser && currentChannel) {
-      this.addListener(currentChannel.id);
+      if (this.state.previousChannel != null) {
+        this.removeListener(this.state.previousChannel.id);
+      }
+      this.setState(
+        {
+          previousChannel: currentChannel
+        },
+        () => {
+          this.addListener(currentChannel.id);
+        }
+      );
     }
   }
 
@@ -24,8 +35,19 @@ class Messages extends Component {
     this.addMessageListener(channelId);
   };
 
+  removeListener = channelId => {
+    this.removeMessageListener(channelId);
+  };
+
+  removeMessageListener = channelId => {
+    this.state.messagesRef.child(channelId).off();
+  };
+
   addMessageListener = channelId => {
     let loadedMessages = [];
+    this.setState({
+      messages: loadedMessages
+    });
     this.state.messagesRef.child(channelId).on("child_added", snap => {
       loadedMessages.push(snap.val());
       this.setState({
